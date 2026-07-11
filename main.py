@@ -13,7 +13,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# রিয়েল-টাইম ফ্রি ইকোনমিক ক্যালেন্ডার API (কোনো এপিআই কি ছাড়াই কাজ করবে)
+# রিয়েল-টাইম ফ্রি ইকোনমিক ক্যালেন্ডার API
 CABLE_API_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
 
 @app.get("/")
@@ -27,7 +27,7 @@ def get_ai_analysis():
         if response.status_code == 200:
             all_news = response.json()
             
-            # বর্তমান তারিখ বের করা (Format: MM-DD-YYYY)
+            # বর্তমান তারিখ (Format: MM-DD-YYYY)
             current_date_str = datetime.now().strftime("%m-%d-%Y")
             
             # শুধুমাত্র আজকের দিনের আসল নিউজগুলো ফিল্টার করা
@@ -35,7 +35,6 @@ def get_ai_analysis():
             
             # যদি আজকে সত্যিই কোনো অর্থনৈতিক নিউজ থাকে
             if todays_news:
-                # সবচেয়ে গুরুত্বপূর্ণ বা ইমপ্যাক্টফুল নিউজটি সিলেক্ট করা (High/Medium Impact)
                 high_impact_news = [n for n in todays_news if n.get("impact") in ["High", "Medium"]]
                 selected_news = high_impact_news[0] if high_impact_news else todays_news[0]
                 
@@ -44,8 +43,6 @@ def get_ai_analysis():
                 impact = selected_news.get("impact", "Low")
                 time_str = selected_news.get("time", "N/A")
                 
-                # নিউজ অ্যানালাইসিস ও মার্কেট ডিরেকশন ক্যালকুলেশন
-                # হাই ইমপ্যাক্ট নিউজে মুভমেন্টের সম্ভাবনা বেশি থাকে
                 if impact == "High":
                     direction = "STRONG BUY 📈" if hash(title) % 2 == 0 else "STRONG SELL 📉"
                     percentage = f"{75 + (hash(title) % 20)}%"
@@ -64,7 +61,7 @@ def get_ai_analysis():
                     "insight": insight
                 }
             
-            # যদি আজকে ফরেক্স ফ্যাক্টরিতে কোনো নিউজ না থাকে (যেমন শনি/রবিবার বা ছুটির দিন)
+            # যদি আজকে ফরেক্স ফ্যাক্টরিতে কোনো নিউজ না থাকে (যেমন শনি/রবিবার)
             else:
                 return {
                     "asset": "MARKET CLOSED / NO NEWS",
