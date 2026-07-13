@@ -44,29 +44,25 @@ def get_ai_analysis(req: PasswordRequest):
             # ১. বাংলাদেশ টাইমজোন অনুযায়ী আজকের তারিখ নেওয়া
             tz_bd = pytz.timezone('Asia/Dhaka')
             now_bd = datetime.now(tz_bd)
-            bd_date = now_bd.strftime("%Y-%m-%d") # উদাহরণ: 2026-07-14
+            bd_date = now_bd.strftime("%Y-%m-%d")
             
-            # ২. ইউএস/নিউইয়র্ক (API এর মূল) টাইমজোন অনুযায়ী তারিখ নেওয়া
+            # ২. ইউএস/নিউইয়র্ক টাইমজোন অনুযায়ী তারিখ নেওয়া
             tz_us = pytz.timezone('America/New_York')
             now_us = datetime.now(tz_us)
-            us_date = now_us.strftime("%Y-%m-%d") # উদাহরণ: 2026-07-13
+            us_date = now_us.strftime("%Y-%m-%d")
             
             todays_news = []
             
-            # এপিআই-এর ভেতর বাংলাদেশ অথবা আমেরিকা দুই দিনের যেকোনো একদিনের নিউজ পেলেই সেটা নিয়ে নেবে
             for news in all_news:
-                news_date_raw = str(news.get("date", "")) # উদাহরণ: "2026-07-14T..."
+                news_date_raw = str(news.get("date", ""))
                 
-                # যদি নিউজের ডেটটি বাংলাদেশের আজকের তারিখ অথবা আমেরিকার রানিং তারিখের সাথে মেলে
                 if bd_date in news_date_raw or us_date in news_date_raw:
                     todays_news.append(news)
             
-            # ৩. সেফটি ব্যাকআপ: যদি সার্ভার কোনো কারণে ডেট মিসম্যাচ করে, তবে খালি না রেখে চলতি সপ্তাহের রানিং হাই-ইমপ্যাক্ট নিউজ নিয়ে নেবে
             if not todays_news:
                 todays_news = [n for n in all_news if n.get("impact") in ["High", "Medium"]]
 
             if todays_news:
-                # হাই ইমপ্যাক্ট (লাল ফোল্ডার) নিউজকে সবচেয়ে আগে প্রধান্য দেওয়া
                 high_impact = [n for n in todays_news if n.get("impact") == "High"]
                 medium_impact = [n for n in todays_news if n.get("impact") == "Medium"]
                 
@@ -82,7 +78,6 @@ def get_ai_analysis(req: PasswordRequest):
                 impact = selected_news.get("impact", "Low")
                 time_str = selected_news.get("time", "N/A")
                 
-                # অ্যালগরিদমিক ডিরেকশন জেনারেশন
                 direction = "STRONG BUY 📈" if hash(title) % 2 == 0 else "STRONG SELL 📉"
                 percentage = f"{85 + (hash(title) % 10)}%"
                 
