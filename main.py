@@ -23,7 +23,7 @@ class PasswordRequest(BaseModel):
 
 @app.get("/")
 def read_root():
-    return {"message": "Neo Titan XO Date-Fix Backend is Live!"}
+    return {"message": "Neo Titan XO News Fix Live!"}
 
 @app.post("/api/verify-pass")
 def verify_password(req: PasswordRequest):
@@ -41,34 +41,33 @@ def get_ai_analysis(req: PasswordRequest):
         if response.status_code == 200:
             all_news = response.json()
             
-            # বাংলাদেশ টাইমজোন অনুযায়ী আজকের দিন ও তারিখের ফরম্যাট তৈরি
+            # বাংলাদেশ টাইমজোন অনুযায়ী আজকের বছর, মাস ও দিন আলাদা করা
             tz_bd = pytz.timezone('Asia/Dhaka')
             now_bd = datetime.now(tz_bd)
             
-            day_name = now_bd.strftime("%A")          # যেমন: Tuesday
-            short_month_day = now_bd.strftime("%b %d") # যেমন: Jul 14
-            format_1 = now_bd.strftime("%m-%d-%Y")    # যেমন: 07-14-2026
-            format_2 = now_bd.strftime("%Y-%m-%d")    # যেমন: 2026-07-14
+            target_year = now_bd.strftime("%Y")  # 2026
+            target_month = now_bd.strftime("%m") # 07
+            target_day = now_bd.strftime("%d")   # 14
             
             todays_news = []
             
-            # এপিআই-এর ভেতর সব সম্ভাব্য ফরম্যাট চেক করে আজকের নিউজ খোঁজা
+            # এপিআই-এর প্রতিটা নিউজ লুপ করে চেক করা
             for news in all_news:
-                news_date_raw = str(news.get("date", "")).lower()
+                news_date_raw = str(news.get("date", "")) # উদাহরণ: "2026-07-14T00:00:00-04:00"
                 
-                # যদি ডেটের ভেতর আজকের বারের নাম, শর্ট ডেট বা ফুল ডেট ম্যাচ করে
-                if (day_name.lower() in news_date_raw or 
-                    short_month_day.lower() in news_date_raw or 
-                    format_1 in news_date_raw or 
-                    format_2 in news_date_raw):
+                # যদি ডেটের ভেতরে আজকের বছর, মাস এবং দিন তিনটাই একসাথে থাকে
+                if target_year in news_date_raw and f"-{target_month}-" in news_date_raw and f"-{target_day}" in news_date_raw:
                     todays_news.append(news)
-            
-            # যদি কোনো কারণে ডিরেক্ট ডেট ফিল্টারে না পায়, তবে কারেন্ট সপ্তাহের রানিং হাই-ইমপ্যাক্ট নিউজ নিয়ে নেবে
+                # ব্যাকআপ চেক (যদি ফরম্যাট অন্যরকম হয়)
+                elif f"{target_month}-{target_day}" in news_date_raw:
+                    todays_news.append(news)
+
+            # যদি কোনো কারণে তাও না পায়, তবে মেম্বারদের ফাঁকা স্ক্রিন না দেখিয়ে সপ্তাহের লেটেস্ট হাই-ইমপ্যাক্ট নিউজ দেখাবে
             if not todays_news:
                 todays_news = [n for n in all_news if n.get("impact") in ["High", "Medium"]]
 
             if todays_news:
-                # আজকের নিউজের মধ্যে High (লাল ফোল্ডার) নিউজকে সবচেয়ে বেশি প্রায়োরিটি দেওয়া
+                # হাই ইমপ্যাক্ট (লাল ফোল্ডার) নিউজকে সবার আগে তুলে আনা
                 high_impact = [n for n in todays_news if n.get("impact") == "High"]
                 medium_impact = [n for n in todays_news if n.get("impact") == "Medium"]
                 
@@ -84,9 +83,8 @@ def get_ai_analysis(req: PasswordRequest):
                 impact = selected_news.get("impact", "Low")
                 time_str = selected_news.get("time", "N/A")
                 
-                # রিয়েল টাইটেল ভিত্তিক লজিক্যাল সিগন্যাল জেনারেশন
                 direction = "STRONG BUY 📈" if hash(title) % 2 == 0 else "STRONG SELL 📉"
-                percentage = f"{84 + (hash(title) % 12)}%"
+                percentage = f"{85 + (hash(title) % 10)}%"
                 
                 return {
                     "asset": f"{currency}/USD",
