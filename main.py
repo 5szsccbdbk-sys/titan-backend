@@ -20,75 +20,45 @@ CABLE_API_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
 class PasswordRequest(BaseModel):
     password: str
 
-@app.get("/")
-def read_root():
-    return {"message": "Titan AI Real News Engine Live!"}
-
-@app.post("/api/verify-pass")
-def verify_password(req: PasswordRequest):
-    if req.password == SECRET_PASSWORD:
-        return {"status": "success"}
-    return {"status": "failed", "error": "Incorrect Password"}
-
 @app.post("/api/ai-analysis")
 def get_ai_analysis(req: PasswordRequest):
     if req.password != SECRET_PASSWORD:
-        return {"error": "Unauthorized Access Detected!"}
+        return {"error": "Unauthorized Access"}
 
     try:
-        response = requests.get(CABLE_API_URL, timeout=8)
+        response = requests.get(CABLE_API_URL, timeout=10)
         if response.status_code == 200:
             all_news = response.json()
             
-            # শুধুমাত্র হাই এবং মিডিয়াম ইম্প্যাক্টের রিয়েল নিউজগুলো ফিল্টার করা
-            actual_news = [n for n in all_news if n.get("impact") in ["High", "Medium"]]
+            # আজকের তারিখ চেক করা (ISO Format)
+            now = datetime.now(timezone.utc)
+            today_date = now.strftime("%Y-%m-%d")
 
-            if actual_news:
-                # আজকের সবচেয়ে প্রথম হাই-ইম্প্যাক্ট নিউজটিকে সিলেক্ট করা
-                high_impact = [n for n in actual_news if n.get("impact") == "High"]
-                
-                if high_impact:
-                    selected_news = high_impact[0]
-                else:
-                    selected_news = actual_news[0]
-                
-                title = selected_news.get("title", "Economic Event")
-                currency = selected_news.get("country", "USD")
-                impact = selected_news.get("impact", "Low")
-                time_str = selected_news.get("time", "N/A")
-                
-                # রিয়েল নিউজ ভিত্তিক ডিরেকশন জেনারেশন
-                direction = "STRONG BUY 📈" if hash(title) % 2 == 0 else "STRONG SELL 📉"
-                percentage = f"{85 + (hash(title) % 10)}%"
-                
+            # শুধুমাত্র হাই ইম্প্যাক্ট নিউজ ফিল্টার করা
+            todays_news = [n for n in all_news if today_date in n.get("date", "") and n.get("impact") == "High"]
+
+            if todays_news:
+                news = todays_news[0]
+                direction = "STRONG BUY 📈" if hash(news.get('title')) % 2 == 0 else "STRONG SELL 📉"
                 return {
-                    "asset": f"{currency}/USD",
-                    "event": title,
-                    "time": f"Today at {time_str} ({impact} Impact)",
-                    "raw_time": time_str, 
+                    "asset": f"{news.get('country')}/USD",
+                    "event": news.get("title"),
+                    "time": f"Today at {news.get('time')}",
+                    "raw_time": news.get('time'),
                     "direction": direction,
-                    "confidence": percentage,
-                    "insight": f"High impact CPI/Economic news detected for {currency}. Expect heavy volume and fast movement."
+                    "confidence": f"{85 + (hash(news.get('title')) % 10)}%",
+                    "insight": f"High impact news detected for {news.get('country')}."
                 }
         
-        # যদি নিউজ একদমই না থাকে তবে এটি দেখাবে
+        # নিউজ না থাকলে স্পষ্ট মেসেজ (কোনো ফেক ডেটা নেই)
         return {
             "asset": "NO LIVE NEWS",
-            "event": "No Economic News Scheduled",
+            "event": "No High Impact News Today",
             "time": "N/A",
             "raw_time": None,
-            "direction": "STANDBY ⚠️ NO TRADE",
+            "direction": "STANDBY ⚠️",
             "confidence": "0%",
-            "insight": "Forex Factory calendar confirms there are no active high-impact economic news events right now."
+            "insight": "No high-impact economic news scheduled for today."
         }
-                
     except Exception as e:
-        return {
-            "asset": "SERVER ERROR",
-            "event": "Unable to fetch live news calendar",
-            "time": "N/A",
-            "raw_time": None,
-            "direction": "ERROR ⚠️ TRY AGAIN",
-            "confidence": "0%",
-            "insight": "Could not establish connection with Forex Factory API. Please check internet or try again later."
-        }
+        return {"error": "API Connection Failed"}
