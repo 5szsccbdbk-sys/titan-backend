@@ -2,8 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import requests
-from datetime import datetime
-import pytz
+from datetime import datetime, timedelta, timezone
 
 app = FastAPI()
 
@@ -23,7 +22,7 @@ class PasswordRequest(BaseModel):
 
 @app.get("/")
 def read_root():
-    return {"message": "Neo Titan XO Multi-Timezone Fix Live!"}
+    return {"message": "Neo Titan XO Native Timezone Fix Live!"}
 
 @app.post("/api/verify-pass")
 def verify_password(req: PasswordRequest):
@@ -41,24 +40,26 @@ def get_ai_analysis(req: PasswordRequest):
         if response.status_code == 200:
             all_news = response.json()
             
-            # ১. বাংলাদেশ টাইমজোন অনুযায়ী আজকের তারিখ নেওয়া
-            tz_bd = pytz.timezone('Asia/Dhaka')
-            now_bd = datetime.now(tz_bd)
-            bd_date = now_bd.strftime("%Y-%m-%d")
+            # UTC টাইম বের করা
+            now_utc = datetime.now(timezone.utc)
             
-            # ২. ইউএস/নিউইয়র্ক টাইমজোন অনুযায়ী তারিখ নেওয়া
-            tz_us = pytz.timezone('America/New_York')
-            now_us = datetime.now(tz_us)
+            # পাইথনের নিজস্ব timedelta দিয়ে বাংলাদেশ (UTC+6) ও নিউ ইয়র্ক (UTC-4) এর তারিখ বের করা
+            now_bd = now_utc + timedelta(hours=6)
+            now_us = now_utc - timedelta(hours=4)
+            
+            bd_date = now_bd.strftime("%Y-%m-%d")
             us_date = now_us.strftime("%Y-%m-%d")
             
             todays_news = []
             
+            # এপিআই ডেটার সাথে দুই দেশের তারিখ মেলানো
             for news in all_news:
                 news_date_raw = str(news.get("date", ""))
                 
                 if bd_date in news_date_raw or us_date in news_date_raw:
                     todays_news.append(news)
             
+            # সেফটি ব্যাকআপ: তারিখ মিসম্যাচ হলে চলতি সপ্তাহের রানিং হাই-ইমপ্যাক্ট নিউজ দেখাবে
             if not todays_news:
                 todays_news = [n for n in all_news if n.get("impact") in ["High", "Medium"]]
 
