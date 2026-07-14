@@ -5,110 +5,201 @@ import requests
 from datetime import datetime
 import pytz
 
-app = FastAPI()
+app = FastAPI(title="Titan AI Backend")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_credentials=False,
 )
 
 SECRET_PASSWORD = "NTXORHN"
+
 CABLE_API_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
+
 
 class PasswordRequest(BaseModel):
     password: str
 
+
 @app.get("/")
-def read_root():
-    return {"message": "Neo Titan XO Date-Fix Backend is Live!"}
+def root():
+    return {
+        "status": "online",
+        "message": "Titan AI Backend Running Successfully"
+    }
+
 
 @app.post("/api/verify-pass")
-def verify_password(req: PasswordRequest):
-    if req.password == SECRET_PASSWORD:
-        return {"status": "success"}
-    return {"status": "failed", "error": "Incorrect Password"}
+def verify(req: PasswordRequest):
 
+    if req.password == SECRET_PASSWORD:
+        return {
+            "status": "success"
+        }
+
+    return {
+        "status": "failed",
+        "error": "Wrong Password"
+    }
+
+
+PAIR_MAP = {
+    "USD": "EUR/USD",
+    "EUR": "EUR/USD",
+    "GBP": "GBP/USD",
+    "JPY": "USD/JPY",
+    "AUD": "AUD/USD",
+    "NZD": "NZD/USD",
+    "CAD": "USD/CAD",
+    "CHF": "USD/CHF"
+}
 @app.post("/api/ai-analysis")
 def get_ai_analysis(req: PasswordRequest):
+
     if req.password != SECRET_PASSWORD:
-        return {"error": "Unauthorized Access Detected!"}
+        return {
+            "error": "Unauthorized Access!"
+        }
 
     try:
-        response = requests.get(CABLE_API_URL, timeout=5)
-        if response.status_code == 200:
-            all_news = response.json()
-            
-            # বাংলাদেশ টাইমজোন অনুযায়ী আজকের ইনফো নেওয়া
-            tz_bd = pytz.timezone('Asia/Dhaka')
-            now_bd = datetime.now(tz_bd)
-            
-            current_date_str = now_bd.strftime("%m-%d-%Y")    # Format: 07-14-2026
-            alternate_date_str = now_bd.strftime("%Y-%m-%d")  # Format: 2026-07-14
-            current_day_name = now_bd.strftime("%A")          # যেমন: Tuesday
-            
-            # ১. প্রথমে ডিরেক্ট ডেট ম্যাচিং দিয়ে নিউজ খোঁজা
-            todays_news = [n for n in all_news if n.get("date") in [current_date_str, alternate_date_str]]
-            
-            # ২. যদি ডিরেক্ট ডেট ফরমেট ম্যাচ না করে, তবে সপ্তাহের ডেটা থেকে আজকের বারের (যেমন Tuesday) নিউজ ফিল্টার করা
-            if not todays_news:
-                # এপিআই ডেটাতে অনেক সময় ডেট টেক্সট আকারে থাকে, তাই আজকের দিনের নাম দিয়ে খোঁজা
-                todays_news = [n for n in all_news if current_day_name.lower() in str(n.get("date", "")).lower() or current_day_name.lower() in str(n.get("time", "")).lower()]
 
-            # ৩. যদি তাও কোনো কারণে মিস হয়, তবে কারেন্ট সপ্তাহের সবচেয়ে লেটেস্ট হাই-ইমপ্যাক্ট নিউজটি ব্যাকআপ হিসেবে ধরবে
-            if not todays_news:
-                todays_news = [n for n in all_news if n.get("impact") in ["High", "Medium"]]
+        response = requests.get(CABLE_API_URL, timeout=10)
 
-            if todays_news:
-                # আজকের নিউজের তালিকা থেকে হাই ইমপ্যাক্ট (লাল বক্স) নিউজকে সবার আগে প্রধান্য দেওয়া
-                high_impact_news = [n for n in todays_news if n.get("impact") == "High"]
-                medium_impact_news = [n for n in todays_news if n.get("impact") == "Medium"]
-                
-                if high_impact_news:
-                    selected_news = high_impact_news[0]
-                elif medium_impact_news:
-                    selected_news = medium_impact_news[0]
-                else:
-                    selected_news = todays_news[0]
-                
-                title = selected_news.get("title", "Economic Event")
-                currency = selected_news.get("country", "USD")
-                impact = selected_news.get("impact", "Low")
-                time_str = selected_news.get("time", "N/A")
-                
-                # ১০০% রিয়েল নিউজের টাইটেল ক্যালকুলেট করে প্রফেশনাল সিগন্যাল
-                direction = "STRONG BUY 📈" if hash(title) % 2 == 0 else "STRONG SELL 📉"
-                percentage = f"{82 + (hash(title) % 13)}%"
-                
-                return {
-                    "asset": f"{currency}/USD",
-                    "event": title,
-                    "time": f"Today at {time_str} ({impact} Impact)",
-                    "raw_time": time_str, 
-                    "direction": direction,
-                    "confidence": percentage,
-                    "insight": f"High impact CPI/Economic news detected for {currency}. Expect heavy volume and fast movement."
-                }
-        
+        if response.status_code != 200:
+            raise Exception("API Error")
+
+        all_news = response.json()
+
+        tz = pytz.timezone("Asia/Dhaka")
+        now = datetime.now(tz)
+
+        today1 = now.strftime("%m-%d-%Y")
+        today2 = now.strftime("%Y-%m-%d")
+        today3 = now.strftime("%b %d")
+        weekday = now.strftime("%A").lower()
+
+        todays_news = []
+
+        for news in all_news:
+
+            date_text = str(news.get("date", "")).lower()
+
+            if (
+                today1.lower() in date_text
+                or today2.lower() in date_text
+                or today3.lower() in date_text
+                or weekday in date_text
+            ):
+                todays_news.append(news)
+
+        if not todays_news:
+
+            todays_news = [
+                n for n in all_news
+                if n.get("impact") in ["High", "Medium"]
+            ]
+
+        if len(todays_news) == 0:
+
+            return {
+                "asset": "NO LIVE NEWS",
+                "event": "No High Impact News",
+                "time": "N/A",
+                "raw_time": None,
+                "direction": "STANDBY ⚠️",
+                "confidence": "0%",
+                "insight": "No major economic news found."
+            }
+
+        high = [n for n in todays_news if n.get("impact") == "High"]
+
+        medium = [n for n in todays_news if n.get("impact") == "Medium"]
+
+        if high:
+            selected = high[0]
+        elif medium:
+            selected = medium[0]
+        else:
+            selected = todays_news[0]
+
+        title = selected.get("title", "Economic News")
+
+        currency = (
+            selected.get("currency")
+            or selected.get("country")
+            or "USD"
+        )
+
+        impact = selected.get("impact", "High")
+
+        time_str = selected.get("time")
+
+        if not time_str:
+            time_str = "N/A"
+
+        asset = PAIR_MAP.get(currency, "EUR/USD")
+                # Stable Direction Logic
+        title_lower = title.lower()
+
+        buy_words = [
+            "gdp",
+            "employment",
+            "payroll",
+            "retail sales",
+            "manufacturing",
+            "services pmi",
+            "interest rate",
+            "cpi"
+        ]
+
+        sell_words = [
+            "unemployment",
+            "jobless",
+            "claims",
+            "recession",
+            "housing",
+            "consumer confidence"
+        ]
+
+        score = sum(word in title_lower for word in buy_words) - \
+                sum(word in title_lower for word in sell_words)
+
+        if score >= 1:
+            direction = "STRONG BUY 📈"
+            confidence = "91%"
+        elif score <= -1:
+            direction = "STRONG SELL 📉"
+            confidence = "91%"
+        else:
+            # Stable fallback (Python hash() ব্যবহার না করে)
+            if sum(ord(c) for c in title) % 2 == 0:
+                direction = "BUY 📈"
+            else:
+                direction = "SELL 📉"
+
+            confidence = "84%"
+
         return {
-            "asset": "NO LIVE NEWS",
-            "event": "No Economic News Scheduled for Today",
-            "time": "N/A",
-            "raw_time": None,
-            "direction": "STANDBY ⚠️ NO TRADE",
-            "confidence": "0%",
-            "insight": "Forex Factory calendar confirms there are no active high-impact economic news events right now."
+            "asset": asset,
+            "event": title,
+            "time": f"Today at {time_str} ({impact} Impact)",
+            "raw_time": time_str,
+            "direction": direction,
+            "confidence": confidence,
+            "insight": f"{impact} impact economic news detected for {currency}. Trade carefully because volatility may increase."
         }
-                
+
     except Exception as e:
+
         return {
             "asset": "SERVER ERROR",
-            "event": "Unable to fetch live news calendar",
+            "event": str(e),
             "time": "N/A",
             "raw_time": None,
-            "direction": "ERROR ⚠️ TRY AGAIN",
+            "direction": "ERROR ⚠️",
             "confidence": "0%",
-            "insight": "Could not establish connection with Forex Factory API. Please check internet or try again later."
+            "insight": "Unable to connect to the news server. Please try again in a few moments."
         }
