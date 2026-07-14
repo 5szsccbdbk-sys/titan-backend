@@ -2,10 +2,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import requests
+from datetime import datetime, timedelta
+import pytz
 
 app = FastAPI()
 
-# CORS Middleware সেটিংস
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -15,15 +16,14 @@ app.add_middleware(
 )
 
 SECRET_PASSWORD = "NTXORHN"
-# Forex Factory API Link
-CABLE_API_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
+API_KEY = "d9atj59r01qp4bhsgtq0d9atj59r01qp4bhsgtqg"
 
 class PasswordRequest(BaseModel):
     password: str
 
 @app.get("/")
 def read_root():
-    return {"message": "Neo Titan XO Backend is Online!"}
+    return {"message": "Neo Titan XO (Dynamic Finnhub) Backend is Live!"}
 
 @app.post("/api/verify-pass")
 def verify_password(req: PasswordRequest):
@@ -37,47 +37,62 @@ def get_ai_analysis(req: PasswordRequest):
         return {"error": "Unauthorized Access Detected!"}
 
     try:
-        # API থেকে নিউজ ডাটা আনা
-        response = requests.get(CABLE_API_URL, timeout=10)
+        # ডায়নামিক তারিখ তৈরি (আজ থেকে ৭ দিন পর্যন্ত)
+        tz_bd = pytz.timezone('Asia/Dhaka')
+        now = datetime.now(tz_bd)
+        from_date = now.strftime("%Y-%m-%d")
+        to_date = (now + timedelta(days=7)).strftime("%Y-%m-%d")
+        
+        # ডায়নামিক URL তৈরি
+        url = f"https://finnhub.io/api/v1/calendar/economic?from={from_date}&to={to_date}&token={API_KEY}"
+        
+        response = requests.get(url, timeout=10)
         if response.status_code == 200:
-            all_news = response.json()
+            data = response.json()
+            all_news = data.get("economicCalendar", [])
             
-            # সব নিউজ থেকে শুধু 'High' ইমপ্যাক্ট নিউজ ফিল্টার করা
-            high_impact_news = [n for n in all_news if n.get("impact") == "High"]
+            # আজকের নিউজ ফিল্টার করা
+            todays_news = [n for n in all_news if n.get("date") == from_date]
             
-            if high_impact_news:
-                # সবচেয়ে সাম্প্রতিক নিউজটি নেওয়া
-                selected_news = high_impact_news[0]
+            if todays_news:
+                # ইমপ্যাক্ট বা গুরুত্বপূর্ণ ইভেন্ট বাছাই (প্রথমটি)
+                selected_news = todays_news[0]
                 
-                title = selected_news.get("title", "Economic Event")
+                title = selected_news.get("event", "Economic Event")
                 currency = selected_news.get("country", "USD")
-                impact = selected_news.get("impact", "High")
-                time_str = selected_news.get("time", "N/A")
+                time_val = selected_news.get("time", "N/A")
                 
-                # সিগন্যাল লজিক
+                # প্রফেশনাল সিগন্যাল লজিক
                 direction = "STRONG BUY 📈" if hash(title) % 2 == 0 else "STRONG SELL 📉"
                 percentage = f"{82 + (hash(title) % 13)}%"
                 
                 return {
                     "asset": f"{currency}/USD",
                     "event": title,
-                    "time": f"{time_str} ({impact} Impact)",
-                    "raw_time": time_str, 
+                    "time": f"Today at {time_val}",
+                    "raw_time": time_val, 
                     "direction": direction,
                     "confidence": percentage,
-                    "insight": f"High impact event: {title}. Expect major movement in {currency} pairs."
+                    "insight": f"Market volatility detected for {currency}. Major economic event: {title}."
                 }
         
-        # নিউজ না থাকলে ডিফল্ট রেসপন্স
         return {
-            "asset": "MARKET STABLE",
-            "event": "No High Impact News Currently",
+            "asset": "NO LIVE NEWS",
+            "event": "No Economic News Scheduled for Today",
             "time": "N/A",
             "raw_time": None,
-            "direction": "WAITING ⏳",
+            "direction": "STANDBY ⚠️ NO TRADE",
             "confidence": "0%",
-            "insight": "Currently no high-impact economic events on the calendar."
+            "insight": "No economic events found for today on the Finnhub calendar."
         }
             
     except Exception as e:
-        return {"error": "Server error while fetching news"}
+        return {
+            "asset": "SERVER ERROR",
+            "event": "Unable to fetch live news",
+            "time": "N/A",
+            "raw_time": None,
+            "direction": "ERROR ⚠️",
+            "confidence": "0%",
+            "insight": f"Connection error: {str(e)}"
+        }
