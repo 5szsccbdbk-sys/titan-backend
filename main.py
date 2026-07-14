@@ -279,7 +279,7 @@ def get_ai_analysis(req: PasswordRequest):
             "insight": f"{impact} impact economic news detected for {currency}. Trade carefully and wait for confirmation after the news release."
         }
 
-    except Exception as e:
+except Exception as e:
     print("ERROR:", e)
 
     return {
