@@ -280,13 +280,14 @@ def get_ai_analysis(req: PasswordRequest):
         }
 
     except Exception as e:
+    print("ERROR:", e)
 
-        return {
-            "asset": "SERVER ERROR",
-            "event": "Unable to fetch live news",
-            "time": "N/A",
-            "raw_time": None,
-            "direction": "ERROR ⚠️",
-            "confidence": "0%",
-            "insight": str(e)
-        }
+    return {
+        "asset": "SERVER ERROR",
+        "event": "Unable to fetch live news",
+        "time": "N/A",
+        "raw_time": None,
+        "direction": "ERROR ⚠️",
+        "confidence": "0%",
+        "insight": str(e)
+    }
