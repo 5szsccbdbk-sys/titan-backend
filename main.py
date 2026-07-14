@@ -80,28 +80,59 @@ def get_ai_analysis(req: PasswordRequest):
         today2 = now.strftime("%Y-%m-%d")
         today3 = now.strftime("%b %d")
         weekday = now.strftime("%A").lower()
+todays_news = []
 
-        todays_news = []
+for news in all_news:
 
-        for news in all_news:
+    impact = str(news.get("impact", "")).lower()
 
-            date_text = str(news.get("date", "")).lower()
+    date_text = str(news.get("date", "")).lower()
 
-            if (
-                today1.lower() in date_text
-                or today2.lower() in date_text
-                or today3.lower() in date_text
-                or weekday in date_text
-            ):
-                todays_news.append(news)
+    time_text = str(news.get("time", "")).lower()
 
-        if not todays_news:
+    # আজকের নিউজ
+    if (
+        today1.lower() in date_text
+        or today2.lower() in date_text
+        or today3.lower() in date_text
+        or weekday in date_text
+    ):
+        todays_news.append(news)
+        continue
 
-            todays_news = [
-                n for n in all_news
-                if n.get("impact") in ["High", "Medium"]
-            ]
+    # API যদি date না দেয় কিন্তু time দেয়
+    if impact in ["high", "medium"] and time_text not in ["", "n/a", "all day"]:
+        todays_news.append(news)
 
+# Duplicate remove
+unique = []
+titles = set()
+
+for news in todays_news:
+
+    title = str(news.get("title", "")).strip()
+
+    if title not in titles:
+        titles.add(title)
+        unique.append(news)
+
+todays_news = unique
+
+# Backup
+if len(todays_news) == 0:
+
+    todays_news = [
+        n for n in all_news
+        if str(n.get("impact", "")).lower() == "high"
+    ]
+
+if len(todays_news) == 0:
+
+    todays_news = [
+        n for n in all_news
+        if str(n.get("impact", "")).lower() == "medium"
+    ]
+        
         if len(todays_news) == 0:
 
             return {
@@ -203,3 +234,96 @@ def get_ai_analysis(req: PasswordRequest):
             "confidence": "0%",
             "insight": "Unable to connect to the news server. Please try again in a few moments."
         }
+def get_best_news(news_list):
+
+    high = []
+    medium = []
+    low = []
+
+    for news in news_list:
+
+        impact = str(news.get("impact", "")).lower()
+
+selected = get_best_news(todays_news)
+
+if selected is None:
+
+    return {
+        "asset": "NO LIVE NEWS",
+        "event": "No News Found",
+        "time": "N/A",
+        "raw_time": None,
+        "direction": "WAIT",
+        "confidence": "0%",
+        "insight": "No economic event available."
+    }
+        
+    priority_keywords = [
+        "Non-Farm",
+        "NFP",
+        "CPI",
+        "Core CPI",
+        "FOMC",
+        "Interest Rate",
+        "Federal Funds Rate",
+        "PPI",
+        "GDP",
+        "Retail Sales",
+        "Unemployment",
+        "PMI",
+        "CPI m/m",
+        "Core CPI m/m"
+    ]
+
+    if high:
+
+        for key in priority_keywords:
+
+            for item in high:
+
+                title = str(item.get("title", ""))
+
+                if key.lower() in title.lower():
+                    return item
+
+        return high[0]
+
+    if medium:
+        return medium[0]
+
+    if low:
+        return low[0]
+
+    return None
+    def get_currency(news):
+
+    currency = get_currency(selected)
+    
+    currency = str(currency).upper()
+
+    if "USD" in currency or "UNITED STATES" in currency:
+        return "USD"
+
+    if "EUR" in currency or "EURO" in currency:
+        return "EUR"
+
+    if "GBP" in currency or "UNITED KINGDOM" in currency:
+        return "GBP"
+
+    if "JPY" in currency or "JAPAN" in currency:
+        return "JPY"
+
+    if "AUD" in currency or "AUSTRALIA" in currency:
+        return "AUD"
+
+    if "NZD" in currency or "NEW ZEALAND" in currency:
+        return "NZD"
+
+    if "CAD" in currency or "CANADA" in currency:
+        return "CAD"
+
+    if "CHF" in currency or "SWITZERLAND" in currency:
+        return "CHF"
+
+    return "USD"
+    
