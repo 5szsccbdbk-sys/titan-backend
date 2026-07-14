@@ -1,23 +1,22 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import requests
 from datetime import datetime
+import requests
 import pytz
 
-app = FastAPI(title="Titan AI Backend")
+app = FastAPI(title="Neo Titan XO AI")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
-    allow_credentials=False,
 )
 
 SECRET_PASSWORD = "NTXORHN"
-
-CABLE_API_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
+NEWS_API = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
 
 
 class PasswordRequest(BaseModel):
@@ -25,10 +24,10 @@ class PasswordRequest(BaseModel):
 
 
 @app.get("/")
-def root():
+def home():
     return {
         "status": "online",
-        "message": "Titan AI Backend Running Successfully"
+        "message": "Neo Titan XO Backend Running"
     }
 
 
@@ -36,9 +35,7 @@ def root():
 def verify(req: PasswordRequest):
 
     if req.password == SECRET_PASSWORD:
-        return {
-            "status": "success"
-        }
+        return {"status": "success"}
 
     return {
         "status": "failed",
@@ -56,185 +53,63 @@ PAIR_MAP = {
     "CAD": "USD/CAD",
     "CHF": "USD/CHF"
 }
-@app.post("/api/ai-analysis")
-def get_ai_analysis(req: PasswordRequest):
 
-    if req.password != SECRET_PASSWORD:
-        return {
-            "error": "Unauthorized Access!"
-        }
 
-    try:
+def get_currency(news):
 
-        response = requests.get(CABLE_API_URL, timeout=10)
+    currency = (
+        news.get("currency")
+        or news.get("country")
+        or "USD"
+    )
 
-        if response.status_code != 200:
-            raise Exception("API Error")
+    currency = str(currency).upper()
 
-        all_news = response.json()
+    if "UNITED STATES" in currency:
+        return "USD"
 
-        tz = pytz.timezone("Asia/Dhaka")
-        now = datetime.now(tz)
+    if "EURO" in currency:
+        return "EUR"
 
-        today1 = now.strftime("%m-%d-%Y")
-        today2 = now.strftime("%Y-%m-%d")
-        today3 = now.strftime("%b %d")
-        weekday = now.strftime("%A").lower()
-todays_news = []
+    if "UNITED KINGDOM" in currency:
+        return "GBP"
 
-for news in all_news:
+    if "JAPAN" in currency:
+        return "JPY"
 
-    impact = str(news.get("impact", "")).lower()
+    if "AUSTRALIA" in currency:
+        return "AUD"
 
-    date_text = str(news.get("date", "")).lower()
+    if "NEW ZEALAND" in currency:
+        return "NZD"
 
-    time_text = str(news.get("time", "")).lower()
+    if "CANADA" in currency:
+        return "CAD"
 
-    # আজকের নিউজ
-    if (
-        today1.lower() in date_text
-        or today2.lower() in date_text
-        or today3.lower() in date_text
-        or weekday in date_text
-    ):
-        todays_news.append(news)
-        continue
+    if "SWITZERLAND" in currency:
+        return "CHF"
 
-    # API যদি date না দেয় কিন্তু time দেয়
-    if impact in ["high", "medium"] and time_text not in ["", "n/a", "all day"]:
-        todays_news.append(news)
-
-# Duplicate remove
-unique = []
-titles = set()
-
-for news in todays_news:
-
-    title = str(news.get("title", "")).strip()
-
-    if title not in titles:
-        titles.add(title)
-        unique.append(news)
-
-todays_news = unique
-
-# Backup
-if len(todays_news) == 0:
-
-    todays_news = [
-        n for n in all_news
-        if str(n.get("impact", "")).lower() == "high"
-    ]
-
-if len(todays_news) == 0:
-
-    todays_news = [
-        n for n in all_news
-        if str(n.get("impact", "")).lower() == "medium"
-    ]
-        
-        if len(todays_news) == 0:
-
-            return {
-                "asset": "NO LIVE NEWS",
-                "event": "No High Impact News",
-                "time": "N/A",
-                "raw_time": None,
-                "direction": "STANDBY ⚠️",
-                "confidence": "0%",
-                "insight": "No major economic news found."
-            }
-
-        high = [n for n in todays_news if n.get("impact") == "High"]
-
-        medium = [n for n in todays_news if n.get("impact") == "Medium"]
-
-        if high:
-            selected = high[0]
-        elif medium:
-            selected = medium[0]
-        else:
-            selected = todays_news[0]
-
-        title = selected.get("title", "Economic News")
-
-        currency = (
-            selected.get("currency")
-            or selected.get("country")
-            or "USD"
-        )
-
-        impact = selected.get("impact", "High")
-
-        time_str = selected.get("time")
-
-        if not time_str:
-            time_str = "N/A"
-
-        asset = PAIR_MAP.get(currency, "EUR/USD")
-                # Stable Direction Logic
-        title_lower = title.lower()
-
-        buy_words = [
-            "gdp",
-            "employment",
-            "payroll",
-            "retail sales",
-            "manufacturing",
-            "services pmi",
-            "interest rate",
-            "cpi"
-        ]
-
-        sell_words = [
-            "unemployment",
-            "jobless",
-            "claims",
-            "recession",
-            "housing",
-            "consumer confidence"
-        ]
-
-        score = sum(word in title_lower for word in buy_words) - \
-                sum(word in title_lower for word in sell_words)
-
-        if score >= 1:
-            direction = "STRONG BUY 📈"
-            confidence = "91%"
-        elif score <= -1:
-            direction = "STRONG SELL 📉"
-            confidence = "91%"
-        else:
-            # Stable fallback (Python hash() ব্যবহার না করে)
-            if sum(ord(c) for c in title) % 2 == 0:
-                direction = "BUY 📈"
-            else:
-                direction = "SELL 📉"
-
-            confidence = "84%"
-
-        return {
-            "asset": asset,
-            "event": title,
-            "time": f"Today at {time_str} ({impact} Impact)",
-            "raw_time": time_str,
-            "direction": direction,
-            "confidence": confidence,
-            "insight": f"{impact} impact economic news detected for {currency}. Trade carefully because volatility may increase."
-        }
-
-    except Exception as e:
-
-        return {
-            "asset": "SERVER ERROR",
-            "event": str(e),
-            "time": "N/A",
-            "raw_time": None,
-            "direction": "ERROR ⚠️",
-            "confidence": "0%",
-            "insight": "Unable to connect to the news server. Please try again in a few moments."
-        }
+    return currency
 def get_best_news(news_list):
+
+    if not news_list:
+        return None
+
+    priority = [
+        "Core CPI",
+        "CPI",
+        "Non-Farm",
+        "NFP",
+        "FOMC",
+        "Federal Funds Rate",
+        "Interest Rate",
+        "GDP",
+        "PPI",
+        "Retail Sales",
+        "PMI",
+        "Employment",
+        "Unemployment"
+    ]
 
     high = []
     medium = []
@@ -244,48 +119,25 @@ def get_best_news(news_list):
 
         impact = str(news.get("impact", "")).lower()
 
-selected = get_best_news(todays_news)
+        if impact == "high":
+            high.append(news)
 
-if selected is None:
+        elif impact == "medium":
+            medium.append(news)
 
-    return {
-        "asset": "NO LIVE NEWS",
-        "event": "No News Found",
-        "time": "N/A",
-        "raw_time": None,
-        "direction": "WAIT",
-        "confidence": "0%",
-        "insight": "No economic event available."
-    }
-        
-    priority_keywords = [
-        "Non-Farm",
-        "NFP",
-        "CPI",
-        "Core CPI",
-        "FOMC",
-        "Interest Rate",
-        "Federal Funds Rate",
-        "PPI",
-        "GDP",
-        "Retail Sales",
-        "Unemployment",
-        "PMI",
-        "CPI m/m",
-        "Core CPI m/m"
-    ]
+        else:
+            low.append(news)
+
+    for keyword in priority:
+
+        for item in high:
+
+            title = str(item.get("title", ""))
+
+            if keyword.lower() in title.lower():
+                return item
 
     if high:
-
-        for key in priority_keywords:
-
-            for item in high:
-
-                title = str(item.get("title", ""))
-
-                if key.lower() in title.lower():
-                    return item
-
         return high[0]
 
     if medium:
@@ -295,35 +147,146 @@ if selected is None:
         return low[0]
 
     return None
-    def get_currency(news):
 
-    currency = get_currency(selected)
-    
-    currency = str(currency).upper()
 
-    if "USD" in currency or "UNITED STATES" in currency:
-        return "USD"
+@app.post("/api/ai-analysis")
+def get_ai_analysis(req: PasswordRequest):
 
-    if "EUR" in currency or "EURO" in currency:
-        return "EUR"
+    if req.password != SECRET_PASSWORD:
+        return {
+            "error": "Unauthorized Access"
+        }
 
-    if "GBP" in currency or "UNITED KINGDOM" in currency:
-        return "GBP"
+    try:
 
-    if "JPY" in currency or "JAPAN" in currency:
-        return "JPY"
+        response = requests.get(NEWS_API, timeout=10)
 
-    if "AUD" in currency or "AUSTRALIA" in currency:
-        return "AUD"
+        if response.status_code != 200:
+            raise Exception("News API Offline")
 
-    if "NZD" in currency or "NEW ZEALAND" in currency:
-        return "NZD"
+        all_news = response.json()
 
-    if "CAD" in currency or "CANADA" in currency:
-        return "CAD"
+        tz = pytz.timezone("Asia/Dhaka")
+        now = datetime.now(tz)
 
-    if "CHF" in currency or "SWITZERLAND" in currency:
-        return "CHF"
+        today1 = now.strftime("%m-%d-%Y")
+        today2 = now.strftime("%Y-%m-%d")
+        today3 = now.strftime("%b %d").lower()
+        weekday = now.strftime("%A").lower()
 
-    return "USD"
-    
+        todays_news = []
+
+        for news in all_news:
+
+            date_text = str(news.get("date", "")).lower()
+            time_text = str(news.get("time", "")).lower()
+            impact = str(news.get("impact", "")).lower()
+
+            if (
+                today1.lower() in date_text
+                or today2.lower() in date_text
+                or today3 in date_text
+                or weekday in date_text
+            ):
+                todays_news.append(news)
+                continue
+
+            if impact in ["high", "medium"] and time_text not in ["", "n/a"]:
+                todays_news.append(news)
+
+        unique = []
+        seen = set()
+
+        for news in todays_news:
+
+            title = str(news.get("title", "")).strip()
+
+            if title not in seen:
+                seen.add(title)
+                unique.append(news)
+
+        todays_news = unique
+
+        selected = get_best_news(todays_news)
+
+        if selected is None:
+
+            return {
+                "asset": "NO LIVE NEWS",
+                "event": "No Important News Today",
+                "time": "N/A",
+                "raw_time": None,
+                "direction": "WAIT",
+                "confidence": "0%",
+                "insight": "No High Impact Economic News Found."
+            }
+        title = selected.get("title", "Economic News")
+
+        currency = get_currency(selected)
+
+        impact = selected.get("impact", "High")
+
+        time_str = selected.get("time")
+
+        if not time_str:
+            time_str = "N/A"
+
+        asset = PAIR_MAP.get(currency, "EUR/USD")
+
+        title_lower = title.lower()
+
+        if any(word in title_lower for word in [
+            "cpi",
+            "core cpi",
+            "ppi",
+            "interest rate",
+            "fomc",
+            "federal funds",
+            "nfp",
+            "non-farm payroll"
+        ]):
+            direction = "HIGH VOLATILITY ⚠️"
+            confidence = "95%"
+
+        elif any(word in title_lower for word in [
+            "gdp",
+            "retail sales",
+            "employment",
+            "pmi"
+        ]):
+            direction = "BUY 📈"
+            confidence = "90%"
+
+        elif any(word in title_lower for word in [
+            "unemployment",
+            "jobless",
+            "claims"
+        ]):
+            direction = "SELL 📉"
+            confidence = "90%"
+
+        else:
+            direction = "WAIT ⏳"
+            confidence = "80%"
+
+        return {
+            "asset": asset,
+            "event": title,
+            "time": f"Today at {time_str} ({impact} Impact)",
+            "raw_time": time_str,
+            "direction": direction,
+            "confidence": confidence,
+            "insight": f"{impact} impact economic news detected for {currency}. Trade carefully and wait for confirmation after the news release."
+        }
+
+    except Exception as e:
+
+        return {
+            "asset": "SERVER ERROR",
+            "event": "Unable to fetch live news",
+            "time": "N/A",
+            "raw_time": None,
+            "direction": "ERROR ⚠️",
+            "confidence": "0%",
+            "insight": str(e)
+        }
